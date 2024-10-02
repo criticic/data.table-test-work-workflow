@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: data.table 1.15.99\n"
 "POT-Creation-Date: 2024-08-28 21:08+0000\n"
-"PO-Revision-Date: 2024-09-21 14:25+0300\n"
+"PO-Revision-Date: 2024-10-02 14:39+0300\n"
 "Last-Translator: Ivan Krylov <ikrylov@disroot.org>\n"
 "Language-Team: Russian <https://translate.codeberg.org/projects/data-table-ru/"
 "gettext-R/ru/>\n"
@@ -32,7 +32,7 @@ msgstr "могу только вычитать из объектов «IDate»"
 #: IDateTime.R:119
 #, c-format
 msgid "unary - is not defined for \"IDate\" objects"
-msgstr "операция отрицания не определена для объектов «IDate»"
+msgstr "отрицание не определено для объектов «IDate»"
 
 #: IDateTime.R:309
 #, c-format
@@ -526,7 +526,7 @@ msgstr ""
 #, c-format
 msgid "logical error. i is not a data.table, but 'on' argument is provided."
 msgstr ""
-"Логическая ошибка. «i» не является data.table, но передан аргумент «on»."
+"логическая ошибка. «i» не является data.table, но передан аргумент «on»."
 
 #: data.table.R:591
 #, c-format

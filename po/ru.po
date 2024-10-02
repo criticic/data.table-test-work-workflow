@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: data.table 1.15.99\n"
 "POT-Creation-Date: 2024-08-28 21:08+0000\n"
-"PO-Revision-Date: 2024-09-21 14:20+0300\n"
+"PO-Revision-Date: 2024-10-02 14:35+0300\n"
 "Last-Translator: Ivan Krylov <ikrylov@disroot.org>\n"
 "Language-Team: Russian <https://translate.codeberg.org/projects/data-table-"
 "ru/gettext-C/ru/>\n"
@@ -3830,6 +3830,8 @@ msgid ""
 "Column %d ['%s'] of item %d is length 0. This (and %d other%s like it) has "
 "been filled with NA (NULL for list columns) to make each item uniform."
 msgstr ""
+"Столбец №%d ['%s'] элемента №%d - нулевой длины. Заполняю его (и %d "
+"других%.0s) NA (или NULL для столбцов-списков), чтобы было единообразно."
 
 #: rbindlist.c:64
 #, c-format

@@ -953,7 +953,7 @@ void radix_i(int from, int to, int radix) {
     uint8_t *restrict my_key = key[radix]+from;  // safe to write as we don't use this radix again
     uint8_t *o = (uint8_t *)malloc(my_n * sizeof(uint8_t));
     if (!o)
-      STOP(_("Failed to allocate %lu bytes for '%s'."), my_n * sizeof(uint8_t), "o"); // # nocov
+      STOP(_("Failed to allocate %zu bytes for '%s'."), my_n * sizeof(uint8_t), "o"); // # nocov
     // if last key (i.e. radix+1==nradix) there are no more keys to reorder so we could reorder osub by reference directly and save allocating and populating o just
     // to use it once. However, o's type is uint8_t so many moves within this max-256 vector should be faster than many moves in osub (4 byte or 8 byte ints) [1 byte
     // type is always aligned]

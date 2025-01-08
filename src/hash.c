@@ -2,6 +2,75 @@
 
 #include "data.table.h"
 
+#define ABSEIL
+#ifdef ABSEIL
+// Copyright 2017 The Abseil Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+inline uint64_t gbswap_64(uint64_t host_int) {
+#if defined(__GNUC__)
+  return __builtin_bswap64(host_int);
+#elif defined(_MSC_VER)
+  return _byteswap_uint64(host_int);
+#else
+  return (((host_int & uint64_t(0xFF)) << 56) |
+          ((host_int & uint64_t(0xFF00)) << 40) |
+          ((host_int & uint64_t(0xFF0000)) << 24) |
+          ((host_int & uint64_t(0xFF000000)) << 8) |
+          ((host_int & uint64_t(0xFF00000000)) >> 8) |
+          ((host_int & uint64_t(0xFF0000000000)) >> 24) |
+          ((host_int & uint64_t(0xFF000000000000)) >> 40) |
+          ((host_int & uint64_t(0xFF00000000000000)) >> 56));
+#endif
+}
+
+static R_INLINE uint64_t Mix(uint64_t lhs, uint64_t rhs) {
+    // There used to be a 64-bit case requiring 128-bit arithmetic, but we only use Mix in the 32-bit case.
+    uint64_t m = lhs * rhs;
+    return m ^ (m >> (sizeof(m) * 8 / 2));
+}
+
+static const uint64_t kMul =
+  sizeof(size_t) == 4 ? (uint64_t)0xcc9e2d51
+                      : (uint64_t)0xdcb22ca68cb134ed;
+static R_INLINE uint64_t WeakMix(uint64_t n) {
+  // WeakMix doesn't work well on 32-bit platforms so just use Mix.
+  if (sizeof(size_t) < 8) return Mix(n, kMul);
+  return gbswap_64(n * kMul);
+}
+
+static const void* const kSeed;
+static R_INLINE uint64_t Seed() {
+  return (uint64_t)(uintptr_t)(&kSeed);
+}
+
+static R_INLINE size_t hash_index(SEXP key, uintptr_t multiplier, size_t offset, size_t size) {
+  (void)multiplier;
+  size_t ret = WeakMix(Seed() ^ (uintptr_t)(key));
+  return (ret + offset) % size;
+}
+#else
+// Hashing for an open addressing hash table. See Cormen et al., Introduction to Algorithms, 3rd ed., section 11.4.
+// This is far from perfect. Make size a prime or a power of two and you'll be able to use double hashing.
+static R_INLINE size_t hash_index(SEXP key, uintptr_t multiplier, size_t offset, size_t size) {
+  // The 4 lowest bits of the pointer are probably zeroes because a typical SEXPREC exceeds 16 bytes in size.
+  // Since SEXPRECs are heap-allocated, they are subject to malloc() alignment guarantees,
+  // which is at least 4 bytes on 32-bit platforms, most likely more than 8 bytes.
+  return ((((uintptr_t)key) >> 4) * multiplier + offset) % size;
+}
+#endif
+
 struct hash_pair {
     SEXP key;
     R_xlen_t value;
@@ -51,15 +120,6 @@ static hashtab * hash_create_(size_t n, double load_factor) {
 }
 
 hashtab * hash_create(size_t n) { return hash_create_(n, .5); }
-
-// Hashing for an open addressing hash table. See Cormen et al., Introduction to Algorithms, 3rd ed., section 11.4.
-// This is far from perfect. Make size a prime or a power of two and you'll be able to use double hashing.
-static R_INLINE size_t hash_index(SEXP key, uintptr_t multiplier, size_t offset, size_t size) {
-  // The 4 lowest bits of the pointer are probably zeroes because a typical SEXPREC exceeds 16 bytes in size.
-  // Since SEXPRECs are heap-allocated, they are subject to malloc() alignment guarantees,
-  // which is at least 4 bytes on 32-bit platforms, most likely more than 8 bytes.
-  return ((((uintptr_t)key) >> 4) * multiplier + offset) % size;
-}
 
 void hash_set(hashtab * h, SEXP key, R_xlen_t value) {
   for (size_t i = 0; i < h->size; ++i) {

@@ -67,7 +67,7 @@ jobs:
           echo "| Install Versions | $(formatTime $VERSION_DURATION) |" >> report.md
           echo "| Tests & Plots | $(formatTime $TESTS_DURATION) |" >> report.md
 
-          cml comment update report.md
+          cml comment update report.md --target=pr/$PR_NUMBER
         shell: bash
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}

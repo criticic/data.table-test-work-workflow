@@ -10,11 +10,6 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Install Dependencies
-        run: |
-          apt-get update -y && apt-get install -y jq
-        shell: bash
-
       - name: Download artifacts
         uses: dawidd6/action-download-artifact@v6
         with:

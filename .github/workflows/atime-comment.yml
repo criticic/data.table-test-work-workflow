@@ -9,14 +9,8 @@ jobs:
   post-comment:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    container: ghcr.io/iterative/cml:0-dvc2-base1
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Install Dependencies
-        run: |
-          apt-get update -y && apt-get install -y jq
-        shell: bash
+      - uses: actions/checkout@v4
       - name: Download artifacts
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -50,6 +44,9 @@ jobs:
           echo "END_TESTS=$END_TESTS" >> $GITHUB_ENV
           echo "VERSION_DURATION=$VERSION_DURATION" >> $GITHUB_ENV
 
+      - name: Setup CML
+        uses: iterative/setup-cml@v2
+
       - name: Generate comment
         run: |
           R_DURATION=$((END_SETUP - START_SETUP))
@@ -72,3 +69,5 @@ jobs:
 
           cml comment update report.md
         shell: bash
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}

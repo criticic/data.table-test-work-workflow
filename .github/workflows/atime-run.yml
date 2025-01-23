@@ -1,0 +1,80 @@
+name: atime performance tests - run
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+jobs:
+  comment:
+    if: github.repository == 'Rdatatable/data.table'
+    runs-on: ubuntu-latest
+    container: ghcr.io/iterative/cml:0-dvc2-base1
+    steps:
+      - name: Start timer
+        run: echo "START_SETUP_TIME=$(date +%s)" >> $GITHUB_ENV
+        shell: bash
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Safe directory exception
+        run: git config --global --add safe.directory '*'
+        shell: bash
+
+      - name: Retrieve branch references
+        run: |
+          git switch "${GITHUB_BASE_REF}"
+          git switch "${GITHUB_HEAD_REF}"
+        shell: bash
+
+      - name: R Setup
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Install libgit2
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y cmake libssl-dev
+          git clone --branch v1.6.4 --depth 1 https://github.com/libgit2/libgit2.git
+          cd libgit2 && mkdir build && cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=/usr
+          make && sudo make install
+          cd ../..
+        shell: bash
+
+      - name: Run atime tests
+        run: |
+          cp /github/home/.Rprofile .
+          echo "options(repos = c(CRAN = 'https://cloud.r-project.org'))" >> .Rprofile
+          Rscript -e 'install.packages(c("atime", "ggplot2", "directlabels"))'
+          echo "END_SETUP_START_TESTS_TIME=$(date +%s)" >> $GITHUB_ENV
+          Rscript -e 'atime::atime_pkg(Sys.getenv("GITHUB_WORKSPACE"), tests.dir = ".ci");'
+          echo "END_TESTS_TIME=$(date +%s)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Save timing data
+        run: |
+          mkdir -p timing
+          echo "$START_SETUP_TIME" > timing/start_setup.txt
+          echo "$END_SETUP_START_TESTS_TIME" > timing/end_setup.txt
+          echo "$END_TESTS_TIME" > timing/end_tests.txt
+        shell: bash
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: atime-results
+          path: |
+            .ci/atime/
+            timing/
+
+      - name: Upload PR event
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-event
+          path: ${{ github.event_path }}

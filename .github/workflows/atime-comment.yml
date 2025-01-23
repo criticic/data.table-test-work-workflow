@@ -1,0 +1,70 @@
+name: Post atime performance results
+
+on:
+  workflow_run:
+    workflows: ['Run atime performance tests']
+    types: [completed]
+
+jobs:
+  post-comment:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    container: ghcr.io/iterative/cml:0-dvc2-base1
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Download artifacts
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: atime-results
+          run_id: ${{ github.event.workflow_run.id }}
+          path: atime-results
+
+      - name: Download PR event
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: pr-event
+          run_id: ${{ github.event.workflow_run.id }}
+          path: pr-event
+
+      - name: Extract PR info
+        id: extract-pr
+        run: |
+          PR_NUMBER=$(jq -r '.number' pr-event/event.json)
+          PR_HEAD_SHA=$(jq -r '.pull_request.head.sha' pr-event/event.json)
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "PR_HEAD_SHA=$PR_HEAD_SHA" >> $GITHUB_ENV
+
+      - name: Read timing data
+        run: |
+          START_SETUP=$(cat atime-results/timing/start_setup.txt)
+          END_SETUP=$(cat atime-results/timing/end_setup.txt)
+          END_TESTS=$(cat atime-results/timing/end_tests.txt)
+          VERSION_DURATION=$(cut -d '.' -f1 atime-results/.ci/atime/install_seconds.txt)
+          echo "START_SETUP=$START_SETUP" >> $GITHUB_ENV
+          echo "END_SETUP=$END_SETUP" >> $GITHUB_ENV
+          echo "END_TESTS=$END_TESTS" >> $GITHUB_ENV
+          echo "VERSION_DURATION=$VERSION_DURATION" >> $GITHUB_ENV
+
+      - name: Generate comment
+        run: |
+          R_DURATION=$((END_SETUP - START_SETUP))
+          TESTS_DURATION=$((END_TESTS - END_SETUP - VERSION_DURATION))
+
+          formatTime() {
+            local secs=$1
+            ((secs < 60)) && echo "${secs}s" && return
+            echo "$((secs / 60))m $((secs % 60))s"
+          }
+
+          echo "[![Results](atime-results/.ci/atime/tests_preview_facet.png)](atime-results/.ci/atime/tests_all_facet.png)" > report.md
+          echo -e "\n**Commit:** $PR_HEAD_SHA" >> report.md
+          echo -e "\n**Artifact:** [Download](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts)" >> report.md
+          echo -e "\n| Task | Duration |" >> report.md
+          echo "|------|----------|" >> report.md
+          echo "| Setup | $(formatTime $R_DURATION) |" >> report.md
+          echo "| Install Versions | $(formatTime $VERSION_DURATION) |" >> report.md
+          echo "| Tests & Plots | $(formatTime $TESTS_DURATION) |" >> report.md
+
+          cml comment update report.md --pr $PR_NUMBER
+        shell: bash

@@ -2,7 +2,7 @@ name: atime performance tests - comment
 
 on:
   workflow_run:
-    workflows: ['atime performance tests - run']
+    workflows: ["atime performance tests - run"]
     types: [completed]
 
 jobs:

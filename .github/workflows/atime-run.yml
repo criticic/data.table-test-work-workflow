@@ -15,7 +15,7 @@ jobs:
       - name: Start timer
         run: echo "START_SETUP_TIME=$(date +%s)" >> $GITHUB_ENV
         shell: bash
-      
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -27,6 +27,9 @@ jobs:
 
       - name: Retrieve branch references
         run: |
+          git remote add fork "https://github.com/${{ github.event.pull_request.head.repo.full_name }}.git"
+          git fetch fork "${GITHUB_HEAD_REF}"
+          git switch -c "${GITHUB_HEAD_REF}" "fork/${GITHUB_HEAD_REF}"
           git switch "${GITHUB_BASE_REF}"
           git switch "${GITHUB_HEAD_REF}"
         shell: bash

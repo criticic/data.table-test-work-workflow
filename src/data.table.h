@@ -271,6 +271,10 @@ SEXP coerceUtf8IfNeeded(SEXP x);
 SEXP coerceAs(SEXP x, SEXP as, SEXP copyArg);
 void internal_error(const char *call_name, const char *format, ...);
 
+#if R_VERSION < R_Version(4, 5, 0)
+SEXP R_getVar(SEXP sym, SEXP rho, Rboolean inherits);
+#endif
+
 // types.c
 char *end(char *start);
 void ansMsg(ans_t *ans, int n, bool verbose, const char *func);

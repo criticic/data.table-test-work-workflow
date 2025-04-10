@@ -464,3 +464,19 @@ void internal_error(const char *call_name, const char *format, ...) {
 
   error("%s %s: %s. %s", _("Internal error in"), call_name, buff, _("Please report to the data.table issues tracker."));
 }
+
+#if R_VERSION < R_Version(4, 5, 0)
+SEXP R_getVar(SEXP sym, SEXP rho, Rboolean inherits) {
+  // yes, the argument order is different between the two
+  SEXP ret = inherits ? findVar(sym, rho) : findVarInFrame(rho, sym);
+  if (ret == R_UnboundValue || ret == R_MissingArg)
+    error(_("object '%s' not found"), CHAR(PRINTNAME(sym)));
+  if (TYPEOF(ret) == PROMSXP) {
+    PROTECT(ret);
+    // rho shouldn't matter for promises but some argument is required here
+    ret = eval(ret, rho);
+    UNPROTECT(1);
+  }
+  return ret;
+}
+#endif

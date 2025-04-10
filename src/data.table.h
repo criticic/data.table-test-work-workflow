@@ -275,6 +275,11 @@ void internal_error(const char *call_name, const char *format, ...);
 SEXP R_getVar(SEXP sym, SEXP rho, Rboolean inherits);
 #endif
 
+// We're allowed to count to one. Zero, one, many.
+enum refcnt { REF_NONE, REF_ONE, REF_MULTIPLE };
+enum refcnt getrefcnt(SEXP value);
+enum refcnt getrefcnt_in(SEXP sym, SEXP env, Rboolean inherits);
+
 // types.c
 char *end(char *start);
 void ansMsg(ans_t *ans, int n, bool verbose, const char *func);

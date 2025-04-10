@@ -480,3 +480,19 @@ SEXP R_getVar(SEXP sym, SEXP rho, Rboolean inherits) {
   return ret;
 }
 #endif
+
+enum refcnt getrefcnt(SEXP value) {
+#if R_VERSION < R_Version(4,0,0)
+  // assuming the worst since NAMED only tracks names in environments, not pointers in lists
+  return REF_MULTIPLE;
+#else
+  return MAYBE_SHARED(value)     ? REF_MULTIPLE
+       : MAYBE_REFERENCED(value) ? REF_ONE
+       :                           REF_NONE;
+#endif
+}
+
+// Has to be done in C code to avoid increasing the reference count in an R function call
+enum refcnt getrefcnt_in(SEXP sym, SEXP env, Rboolean inherits) {
+  return getrefcnt(R_getVar(sym, env, inherits));
+}

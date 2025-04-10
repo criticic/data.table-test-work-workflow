@@ -2911,13 +2911,30 @@ setDT = function(x, keep.rownames=FALSE, key=NULL, check.names=FALSE) {
     if (bindingIsLocked(cname, envir)) {
       stopf("Cannot convert '%1$s' to data.table by reference because binding is locked. It is very likely that '%1$s' resides within a package (or an environment) that is locked to prevent modifying its variable bindings. Try copying the object to your current environment, ex: var <- copy(var) and then using setDT again.", cname)
     }
+    # since we'll be replacing that value, need to get its reference count before we force(x) and increase it
+    xrefcnt = .Call(Cgetrefcnt_in, name, envir, FALSE)
+# } else if (.is_simple_extraction(name) || name %iscall% "get") {
+#   # FIXME: will lead to replacement, so need to somehow find out REFCNT(x) before it's incremented for us
+  } else {
+    # won't be replacing the value, so the rules are stricter: it must be temporary now
+    xrefcnt = .Call(Cgetrefcnt_in, as.name('x'), environment(), FALSE)
   }
+  must_reassign = if (xrefcnt > 1) {
+    x = copy(x)
+    TRUE
+  } else if (is.list(x)) {
+    .Call(Cunrefcolumns, x)
+    FALSE
+  } else FALSE
+
   if (is.data.table(x)) {
     # fix for #1078 and #1128, see .resetclass() for explanation.
     setattr(x, 'class', .resetclass(x, 'data.table'))
     if (!missing(key)) setkeyv(x, key) # fix for #1169
     if (check.names) setattr(x, "names", make.names(names(x), unique=TRUE))
-    if (selfrefok(x) > 0L) return(invisible(x)) else setalloccol(x)
+    if (selfrefok(x) > 0L) {
+      if (!must_reassign) return(invisible(x)) # else continue
+    } else setalloccol(x)
   } else if (is.data.frame(x)) {
     # check no matrix-like columns, #3760. Allow a single list(matrix) is unambiguous and depended on by some revdeps, #3581
     # for performance, only warn on the first such column, #5426

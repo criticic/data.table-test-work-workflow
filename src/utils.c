@@ -496,3 +496,11 @@ enum refcnt getrefcnt(SEXP value) {
 enum refcnt getrefcnt_in(SEXP sym, SEXP env, Rboolean inherits) {
   return getrefcnt(R_getVar(sym, env, inherits));
 }
+
+SEXP Cgetrefcnt_in(SEXP sym, SEXP env, SEXP inherits) {
+  SEXP ret = PROTECT(allocVector(INTSXP, 1));
+  // please don't use with NA_LOGICAL, that would make no sense
+  INTEGER(ret)[0] = getrefcnt_in(sym, env, asLogical(inherits) == 1);
+  UNPROTECT(1);
+  return ret;
+}

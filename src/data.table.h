@@ -372,4 +372,5 @@ SEXP dt_has_zlib(void);
 SEXP startsWithAny(SEXP, SEXP, SEXP);
 SEXP convertDate(SEXP, SEXP);
 SEXP fastmean(SEXP);
+SEXP Cgetrefcnt_in(SEXP, SEXP, SEXP);
 

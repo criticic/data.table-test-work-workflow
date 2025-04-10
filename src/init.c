@@ -152,6 +152,7 @@ R_CallMethodDef callMethods[] = {
 {"Cnotchin", (DL_FUNC)&notchin, -1},
 {"Cwarn_matrix_column_r", (DL_FUNC)&warn_matrix_column_r, -1},
 {"Cgetrefcnt_in", (DL_FUNC)&Cgetrefcnt_in, 3},
+{"Cunrefcolumns", (DL_FUNC)&Cunrefcolumns, 1},
 {NULL, NULL, 0}
 };
 

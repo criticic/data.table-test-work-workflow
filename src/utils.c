@@ -504,3 +504,16 @@ SEXP Cgetrefcnt_in(SEXP sym, SEXP env, SEXP inherits) {
   UNPROTECT(1);
   return ret;
 }
+
+SEXP Cunrefcolumns(SEXP x) {
+  R_xlen_t len = XLENGTH(x); // only use with VECSXP lists
+  Rboolean ret = FALSE;
+  for (R_xlen_t i = 0; i < len; ++i) {
+    SEXP col = VECTOR_ELT(x, i);
+    if (getrefcnt(col) > REF_ONE) {
+      SET_VECTOR_ELT(x, i, duplicate(col));
+      ret = TRUE;
+    }
+  }
+  return ScalarLogical(ret);
+}

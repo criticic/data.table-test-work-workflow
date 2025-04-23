@@ -959,7 +959,6 @@ void radix_i(int from, int to, int radix) {
     uint8_t *restrict my_key = key[radix]+from;  // safe to write as we don't use this radix again
     uint8_t *o = (uint8_t *)malloc(my_n * sizeof(uint8_t));
     if (!o) {
-      free(queue);
       STOP(_("Failed to allocate %zu bytes for '%s'."), my_n * sizeof(uint8_t), "o"); // # nocov
     }
     // if last key (i.e. radix+1==nradix) there are no more keys to reorder so we could reorder osub by reference directly and save allocating and populating o just

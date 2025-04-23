@@ -1064,7 +1064,8 @@ void radix_i(int from, int to, int radix) {
       push(my_gs, ngrp);
     } else {
       for (int i=0, f=from; i<ngrp; i++) {
-        pushState((State){f, f+my_gs[i]-1, radix+1});
+        if (my_gs[i] - 1 >= 0)
+          pushState((State){f, f+my_gs[i]-1, radix+1});
         f+=my_gs[i];
       }
     }
@@ -1167,7 +1168,7 @@ void radix_i(int from, int to, int radix) {
     } else {
       // this single thread will now descend and resolve all groups, now that the groups are close in cache
       for (int i=0, my_from=from; i<ngrp; i++) {
-        pushState((State){my_from, my_from+my_gs[i]-1, radix+1});
+        if (my_gs[i] - 1 >= 0) pushState((State){my_from, my_from+my_gs[i]-1, radix+1});
         my_from+=my_gs[i];
       }
     }
@@ -1379,6 +1380,7 @@ void radix_i(int from, int to, int radix) {
         #pragma omp parallel for ordered schedule(dynamic) num_threads(MIN(nth, ngrp))  // #5077
         for (int i=0; i<ngrp; i++) {
           int start = from + starts[ugrp[i]];
+          #pragma omp critical(pushState)
           pushState((State){start, start+my_gs[i]-1, radix+1});
           #pragma omp ordered
           flush();
@@ -1388,6 +1390,7 @@ void radix_i(int from, int to, int radix) {
         #pragma omp parallel for schedule(dynamic) num_threads(MIN(nth, ngrp))  // #5077
         for (int i=0; i<ngrp; i++) {
           int start = from + starts[ugrp[i]];
+          #pragma omp critical(pushState)
           pushState((State){start, start+my_gs[i]-1, radix+1});
         }
       }

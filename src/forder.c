@@ -62,7 +62,7 @@ typedef struct {
     int radix;
 } State;
 
-static State *queue= NULL;
+static State *queue=NULL;
 static int front, rear, queuesize;
 
 static char msg[1001];

@@ -65,6 +65,15 @@ typedef struct {
 static State *queue=NULL;
 static int front, rear, queuesize;
 
+// Push a state onto 'queue', implemented as a priority queue:
+//   https://en.wikipedia.org/wiki/Priority_queue.
+//   Handles reallocation by growing the queue exponentially as needed.
+void pushState(State s);
+State popState(void);
+
+// iterative routine for radix sorting
+void radix_i(int from, int to, int radix);
+
 static char msg[1001];
 // use STOP in this file (not error()) to ensure cleanup() is called first
 // snprintf to msg first in case nrow (just as an example) is provided in the message because cleanup() sets nrow to 0
@@ -442,7 +451,6 @@ uint64_t dtwiddle(double x) //const void *p, int i)
   STOP(_("Unknown non-finite value; not NA, NaN, -Inf or +Inf"));  // # nocov
 }
 
-void radix_i(int from, int to, int radix);
 
 /*
   OpenMP is used here to parallelize multiple operations that come together to

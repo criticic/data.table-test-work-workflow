@@ -1176,7 +1176,7 @@ void radix_i(int from, int to, int radix) {
     } else {
       // this single thread will now descend and resolve all groups, now that the groups are close in cache
       for (int i=0, my_from=from; i<ngrp; i++) {
-        if (my_gs[i] - 1 >= 0) pushState((State){my_from, my_from+my_gs[i]-1, radix+1});
+        pushState((State){my_from, my_from+my_gs[i]-1, radix+1});
         my_from+=my_gs[i];
       }
     }
@@ -1385,20 +1385,16 @@ void radix_i(int from, int to, int radix) {
       // it does make sense to start a parallel team and there will be no nestedness here either.
 
       if (retgrp) {
-        #pragma omp parallel for ordered schedule(dynamic) num_threads(MIN(nth, ngrp))  // #5077
         for (int i=0; i<ngrp; i++) {
           int start = from + starts[ugrp[i]];
-          #pragma omp critical(pushState)
           pushState((State){start, start+my_gs[i]-1, radix+1});
           #pragma omp ordered
           flush();
         }
       } else {
         // flush() is only relevant when retgrp==true so save the redundant ordered clause
-        #pragma omp parallel for schedule(dynamic) num_threads(MIN(nth, ngrp))  // #5077
         for (int i=0; i<ngrp; i++) {
           int start = from + starts[ugrp[i]];
-          #pragma omp critical(pushState)
           pushState((State){start, start+my_gs[i]-1, radix+1});
         }
       }

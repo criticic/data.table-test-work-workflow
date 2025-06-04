@@ -10,7 +10,6 @@ on:
 jobs:
   run-tests:
     runs-on: ubuntu-latest
-    container: ghcr.io/iterative/cml:0-dvc2-base1
     steps:
       - name: Start timer
         run: echo "START_SETUP_TIME=$(date +%s)" >> $GITHUB_ENV
@@ -60,10 +59,18 @@ jobs:
         id: cache-libgit2
         uses: actions/cache@v4
         with:
-          path: /usr/lib/libgit2*
+          path: /tmp/libgit2-cache.tar.gz
           key: ${{ runner.os }}-libgit2-1.6.4-${{ hashFiles('/usr/include/git2.h') }}
           restore-keys: |
             ${{ runner.os }}-libgit2-1.6.4-
+
+      - name: Restore libgit2 from cache
+        if: steps.cache-libgit2.outputs.cache-hit == 'true'
+        run: |
+          echo "Restoring libgit2 from cache..."
+          sudo tar -xzf /tmp/libgit2-cache.tar.gz -C /
+          sudo ldconfig # Refresh linker cache
+        shell: bash
 
       - name: Install libgit2
         if: steps.cache-libgit2.outputs.cache-hit != 'true'
@@ -74,6 +81,14 @@ jobs:
           cmake .. -DCMAKE_INSTALL_PREFIX=/usr
           make && sudo make install
           cd ../..
+          # Create cache tarball with all installed libgit2 files
+          echo "Creating libgit2 cache tarball..."
+          sudo tar -czf /tmp/libgit2-cache.tar.gz \
+            /usr/lib/x86_64-linux-gnu/libgit2* \
+            /usr/lib/x86_64-linux-gnu/pkgconfig/libgit2.pc \
+            /usr/include/git2* \
+            /usr/bin/git2 2>/dev/null || true # Ignore errors if some paths don't exist
+          sudo ldconfig # Refresh linker cache
         shell: bash
 
       - name: Run atime tests

@@ -10,7 +10,6 @@ on:
 jobs:
   run-tests:
     runs-on: ubuntu-latest
-    container: ghcr.io/iterative/cml:0-dvc2-base1
     steps:
       - name: Start timer
         run: echo "START_SETUP_TIME=$(date +%s)" >> $GITHUB_ENV
@@ -39,7 +38,43 @@ jobs:
         with:
           use-public-rspm: true
 
+      - name: Get R library path
+        run: |
+          echo "R_LIB_PATH=$(Rscript -e 'cat(.libPaths()[1])')" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIB_PATH }}
+          key: ${{ runner.os }}-r-packages
+
+      - name: Install R packages (DESCRIPTION-specified deps)
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache: false
+          extra-packages: |
+            atime
+            ggplot2
+            directlabels
+
+      - name: Cache libgit2
+        id: cache-libgit2
+        uses: actions/cache@v4
+        with:
+          path: /tmp/libgit2-cache.tar.gz
+          key: ${{ runner.os }}-libgit2-v1.6.4
+
+      - name: Restore libgit2 from cache
+        if: steps.cache-libgit2.outputs.cache-hit == 'true'
+        run: |
+          echo "Restoring libgit2 from cache..."
+          sudo tar -xzf /tmp/libgit2-cache.tar.gz -C /
+          sudo ldconfig # Refresh linker cache
+        shell: bash
+
       - name: Install libgit2
+        if: steps.cache-libgit2.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update -y && sudo apt-get install -y cmake libssl-dev
           git clone --branch v1.6.4 --depth 1 https://github.com/libgit2/libgit2.git
@@ -47,13 +82,21 @@ jobs:
           cmake .. -DCMAKE_INSTALL_PREFIX=/usr
           make && sudo make install
           cd ../..
+          # Create cache tarball with all installed libgit2 files
+          echo "Creating libgit2 cache tarball..."
+          sudo tar -czf /tmp/libgit2-cache.tar.gz \
+            /usr/lib/x86_64-linux-gnu/libgit2* \
+            /usr/lib/x86_64-linux-gnu/pkgconfig/libgit2.pc \
+            /usr/include/git2* \
+            /usr/bin/git2 2>/dev/null || true # Ignore errors if some paths don't exist
+          sudo ldconfig # Refresh linker cache
         shell: bash
 
       - name: Run atime tests
         run: |
-          cp /github/home/.Rprofile .
+          mkdir -p ~/.R
+          echo "CFLAGS = -std=gnu99" >> ~/.R/Makevars
           echo "options(repos = c(CRAN = 'https://cloud.r-project.org'))" >> .Rprofile
-          Rscript -e 'install.packages(c("atime", "ggplot2", "directlabels"))'
           echo "END_SETUP_START_TESTS_TIME=$(date +%s)" >> $GITHUB_ENV
           Rscript -e 'atime::atime_pkg(Sys.getenv("GITHUB_WORKSPACE"), tests.dir = ".ci");'
           echo "END_TESTS_TIME=$(date +%s)" >> $GITHUB_ENV

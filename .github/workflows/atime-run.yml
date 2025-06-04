@@ -56,7 +56,17 @@ jobs:
       - name: Install R packages (DESCRIPTION-specified deps)
         uses: r-lib/actions/setup-r-dependencies@v2
 
+      - name: Cache libgit2
+        id: cache-libgit2
+        uses: actions/cache@v4
+        with:
+          path: /usr/lib/libgit2*
+          key: ${{ runner.os }}-libgit2-1.6.4-${{ hashFiles('/usr/include/git2.h') }}
+          restore-keys: |
+            ${{ runner.os }}-libgit2-1.6.4-
+
       - name: Install libgit2
+        if: steps.cache-libgit2.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update -y && sudo apt-get install -y cmake libssl-dev
           git clone --branch v1.6.4 --depth 1 https://github.com/libgit2/libgit2.git

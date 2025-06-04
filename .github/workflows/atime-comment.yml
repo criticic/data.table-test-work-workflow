@@ -58,6 +58,7 @@ jobs:
             echo "$((secs / 60))m $((secs % 60))s"
           }
 
+          cat .ci/atime/HEAD_issues.md >> report.md
           echo "[![Results](atime-results/.ci/atime/tests_preview_facet.png)](atime-results/.ci/atime/tests_all_facet.png)" > report.md
           echo -e "\n**Commit:** $PR_HEAD_SHA" >> report.md
           echo -e "\n**Artifact:** [Download](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts)" >> report.md

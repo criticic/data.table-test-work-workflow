@@ -39,6 +39,23 @@ jobs:
         with:
           use-public-rspm: true
 
+      - name: Get R library path
+        run: |
+          echo "R_LIB_PATH=$(Rscript -e 'cat(.libPaths()[1])')" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIB_PATH }}
+          key: ${{ runner.os }}-r-${{ hashFiles('**/DESCRIPTION') }}-${{ hashFiles('.ci/**') }}
+          restore-keys: |
+            ${{ runner.os }}-r-${{ hashFiles('**/DESCRIPTION') }}-
+            ${{ runner.os }}-r-
+
+      - name: Install R packages (DESCRIPTION-specified deps)
+        uses: r-lib/actions/setup-r-dependencies@v2
+
       - name: Install libgit2
         run: |
           sudo apt-get update -y && sudo apt-get install -y cmake libssl-dev

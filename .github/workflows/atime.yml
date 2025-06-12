@@ -1,0 +1,266 @@
+name: Autocomment-atime-results
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start timer
+        run: echo "START_SETUP_TIME=$(date +%s)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Safe directory exception
+        run: git config --global --add safe.directory '*'
+        shell: bash
+
+      - name: Retrieve branch references
+        run: |
+          git remote add fork "https://github.com/${{ github.event.pull_request.head.repo.full_name }}.git"
+          git fetch fork "${GITHUB_HEAD_REF}"
+          # Create local branch for PR head from fork
+          if git rev-parse --verify "refs/heads/${GITHUB_HEAD_REF}" >/dev/null 2>&1; then
+            git branch -D "${GITHUB_HEAD_REF}"
+          fi
+          git switch -c "${GITHUB_HEAD_REF}" "fork/${GITHUB_HEAD_REF}"
+          # Ensure base ref is also available locally
+          git switch "${GITHUB_BASE_REF}"
+          git switch "${GITHUB_HEAD_REF}"
+        shell: bash
+
+      - name: R Setup
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Get R library path
+        run: |
+          echo "R_LIB_PATH=$(Rscript -e 'cat(.libPaths()[1])')" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Download R library cache
+        id: download-r-lib
+        uses: dawidd6/action-download-artifact@v10 
+        with:
+          name: r-lib-cache-${{ hashFiles('DESCRIPTION') }}
+          path: ${{ env.R_LIB_PATH }}
+          if_no_artifact_found: ignore
+
+      - name: Check for R library cache hit
+        id: rlib-hit
+        run: |
+          if [ -n "$(ls -A '${{ env.R_LIB_PATH }}' 2>/dev/null)" ]; then
+            echo "cache-hit=true" >> $GITHUB_ENV
+          else
+            echo "cache-hit=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Install R packages (DESCRIPTION-specified deps and extras)
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache: false
+          extra-packages: |
+            atime
+            ggplot2
+            directlabels
+
+      - name: Download libgit2 artifact from main
+        id: download-libgit2
+        uses: dawidd6/action-download-artifact@v10
+        with:
+          name: libgit2-cache
+          path: /tmp
+          if_no_artifact_found: ignore
+
+      - name: Check for libgit2 cache hit
+        id: libgit2-hit
+        run: |
+          if [ -f /tmp/libgit2-cache.tar.gz ]; then
+            echo "libgit2-cache-hit=true" >> $GITHUB_ENV
+          else
+            echo "libgit2-cache-hit=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Restore libgit2 from artifact
+        if: env.libgit2-cache-hit == 'true'
+        run: |
+          echo "Restoring libgit2 from artifact..."
+          sudo tar -xzf /tmp/libgit2-cache.tar.gz -C /
+          sudo ldconfig
+        shell: bash
+
+      - name: Install libgit2
+        if: env.libgit2-cache-hit == 'false'
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y cmake libssl-dev
+          git clone --branch v1.6.4 --depth 1 https://github.com/libgit2/libgit2.git
+          cd libgit2 && mkdir build && cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=/usr
+          make && sudo make install
+          cd ../..
+          echo "Creating libgit2 cache tarball..."
+          # Ensure target directory for tarball exists
+          mkdir -p /tmp
+          # Create cache tarball with all installed libgit2 files
+          sudo tar -czf /tmp/libgit2-cache.tar.gz \
+            /usr/lib/x86_64-linux-gnu/libgit2* \
+            /usr/lib/x86_64-linux-gnu/pkgconfig/libgit2.pc \
+            /usr/include/git2* \
+            /usr/bin/git2 2>/dev/null || true # Ignore errors if some paths don't exist
+          sudo ldconfig # Refresh linker cache
+        shell: bash
+
+      - name: Run atime tests
+        run: |
+          mkdir -p ~/.R
+          echo "CFLAGS = -std=gnu99" >> ~/.R/Makevars
+          # .Rprofile is in the root of the checkout
+          echo "options(repos = c(CRAN = 'https://cloud.r-project.org'))" >> .Rprofile
+          echo "END_SETUP_START_TESTS_TIME=$(date +%s)" >> $GITHUB_ENV
+          Rscript -e 'atime::atime_pkg(Sys.getenv("GITHUB_WORKSPACE"), tests.dir = ".ci");'
+          echo "END_TESTS_TIME=$(date +%s)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Save timing data
+        run: |
+          mkdir -p timing
+          echo "$START_SETUP_TIME" > timing/start_setup.txt
+          echo "$END_SETUP_START_TESTS_TIME" > timing/end_setup.txt
+          echo "$END_TESTS_TIME" > timing/end_tests.txt
+        shell: bash
+
+      - name: Upload test results and timing
+        uses: actions/upload-artifact@v4
+        with:
+          name: atime-results
+          path: |
+            .ci/atime/
+            timing/
+
+      - name: Upload libgit2 artifact
+        if: env.libgit2-cache-hit == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: libgit2-cache
+          path: /tmp/libgit2-cache.tar.gz
+
+      - name: Upload R library artifact
+        if: env.cache-hit == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: r-lib-cache-${{ hashFiles('DESCRIPTION') }}
+          path: ${{ env.R_LIB_PATH }}
+
+  post-comment:
+    needs: run-tests
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout code (optional, for local file access if needed by CML or scripts)
+        uses: actions/checkout@v4
+
+      - name: Download atime-results artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: atime-results
+          path: atime-results
+
+      - name: Read timing data
+        id: timing_data
+        run: |
+          START_SETUP=$(cat atime-results/timing/start_setup.txt)
+          END_SETUP=$(cat atime-results/timing/end_setup.txt)
+          END_TESTS=$(cat atime-results/timing/end_tests.txt)
+          # Handle case where install_seconds.txt might be missing or empty
+          VERSION_DURATION_RAW=$(cut -d '.' -f1 atime-results/.ci/atime/install_seconds.txt 2>/dev/null)
+          VERSION_DURATION=${VERSION_DURATION_RAW:-0} # Default to 0 if not found or empty
+
+          echo "START_SETUP=$START_SETUP" >> $GITHUB_ENV
+          echo "END_SETUP=$END_SETUP" >> $GITHUB_ENV
+          echo "END_TESTS=$END_TESTS" >> $GITHUB_ENV
+          echo "VERSION_DURATION=$VERSION_DURATION" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Setup CML
+        uses: iterative/setup-cml@v2
+
+      - name: Generate and Post Comment
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          START_SETUP_TIME: ${{ env.START_SETUP }}
+          END_SETUP_START_TESTS_TIME: ${{ env.END_SETUP }}
+          END_TESTS_TIME: ${{ env.END_TESTS }}
+          VERSION_SETUP_DURATION: ${{ env.VERSION_DURATION }}
+          PR_HEAD_SHA_VAL: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER_VAL: ${{ github.event.pull_request.number }}
+        run: |
+          R_SETUP_DURATION=$((END_SETUP_START_TESTS_TIME - START_SETUP_TIME))
+          ATIME_TESTS_DURATION=$((END_TESTS_TIME - END_SETUP_START_TESTS_TIME - VERSION_SETUP_DURATION))
+
+          formatTime() {
+            local totalSeconds=$1
+            if ! [[ "$totalSeconds" =~ ^-?[0-9]+$ ]]; then
+                echo "Time calculation error: non-integer duration ($totalSeconds)"
+                return 1
+            fi
+            if [ $totalSeconds -lt 0 ]; then
+                # Allow for small negative numbers due to timing precision, report as 0s
+                if [ $totalSeconds -gt -2 ]; then
+                  totalSeconds=0
+                else
+                  echo "Time calculation error: negative duration ($totalSeconds s)"
+                  return 1
+                fi
+            fi
+            if [ $totalSeconds -lt 60 ]; then
+                echo "${totalSeconds}s"
+            else
+                local minutes=$((totalSeconds / 60))
+                local seconds=$((totalSeconds % 60))
+                echo "${minutes}m ${seconds}s"
+            fi
+          }
+          
+          R_SETUP_DURATION_FORMATTED=$(formatTime $R_SETUP_DURATION)
+          VERSION_SETUP_DURATION_FORMATTED=$(formatTime $VERSION_SETUP_DURATION)
+          ATIME_TESTS_DURATION_FORMATTED=$(formatTime $ATIME_TESTS_DURATION)
+          
+          # Check if formatting returned an error message (starts with "Time calculation error")
+          if [[ "$R_SETUP_DURATION_FORMATTED" == "Time calculation error"* ]]; then R_SETUP_DURATION_FORMATTED="Error"; fi
+          if [[ "$VERSION_SETUP_DURATION_FORMATTED" == "Time calculation error"* ]]; then VERSION_SETUP_DURATION_FORMATTED="Error"; fi
+          if [[ "$ATIME_TESTS_DURATION_FORMATTED" == "Time calculation error"* ]]; then ATIME_TESTS_DURATION_FORMATTED="Error"; fi
+
+          REPORT_CONTENT="## atime Performance Analysis Results"
+          # Image paths are relative to the workspace root after artifact download
+          REPORT_CONTENT="${REPORT_CONTENT}\n\n[![Comparison Plot](atime-results/.ci/atime/tests_preview_facet.png)](atime-results/.ci/atime/tests_all_facet.png)"
+          
+          if [ -s atime-results/.ci/atime/HEAD_issues.md ]; then
+            REPORT_CONTENT="${REPORT_CONTENT}\n\n$(cat atime-results/.ci/atime/HEAD_issues.md)"
+          fi
+          
+          REPORT_CONTENT="${REPORT_CONTENT}\n\nGenerated via commit: \`${PR_HEAD_SHA_VAL}\`"
+          REPORT_CONTENT="${REPORT_CONTENT}\nDownload link for the full artifact containing test results: [atime-results.zip](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)"
+          REPORT_CONTENT="${REPORT_CONTENT}\n\n| Task                                  | Duration                         |"
+          REPORT_CONTENT="${REPORT_CONTENT}\n|---------------------------------------|----------------------------------|"
+          REPORT_CONTENT="${REPORT_CONTENT}\n| R setup and installing dependencies   | ${R_SETUP_DURATION_FORMATTED}     |"
+          REPORT_CONTENT="${REPORT_CONTENT}\n| Installing different package versions | ${VERSION_SETUP_DURATION_FORMATTED} |"
+          REPORT_CONTENT="${REPORT_CONTENT}\n| Running and plotting the test cases   | ${ATIME_TESTS_DURATION_FORMATTED} |"
+          
+          echo -e "$REPORT_CONTENT" > report.md
+          
+          # Update or create comment on PR
+          cml comment update report.md --target=pr/$PR_NUMBER_VAL
+        shell: bash

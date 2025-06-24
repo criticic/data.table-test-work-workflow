@@ -6,11 +6,12 @@ on:
       - opened
       - reopened
       - synchronize
-    paths:
-      - 'R/**'
-      - 'src/**'
-      - '.ci/atime/**'
-      - 'DESCRIPTION'
+    # for testing, to run on empty PRs
+    # paths:
+    #   - 'R/**'
+    #   - 'src/**'
+    #   - '.ci/atime/**'
+    #   - 'DESCRIPTION'
 
 jobs:
   comment:

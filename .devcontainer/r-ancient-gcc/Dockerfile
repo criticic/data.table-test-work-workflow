@@ -15,5 +15,5 @@ install.packages(setdiff(deps, standard_pkgs$base));     \
 '
 
 # setup cc()
-WORKDIR /root
-COPY .devcontainer/.Rprofile .
+# WORKDIR /root
+# COPY .devcontainer/.Rprofile .

@@ -19,7 +19,36 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      contents: read
+      
     steps:
-      - uses: criticic/r-Autocomment-atime-results@v1.5.0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Prepare inputs based on trigger
+        id: prepare-inputs
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request_target" ]; then
+            echo "Trigger is a Pull Request. Setting PR-specific inputs."
+            echo "base_ref=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+            echo "head_ref=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+            echo "head_sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Trigger is a Manual Dispatch. Setting inputs to compare HEAD vs parent."
+            echo "base_ref=$(git rev-parse HEAD~1)" >> $GITHUB_OUTPUT
+            echo "head_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+            echo "head_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "pr_number=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run atime performance analysis
+        uses: criticic/r-Autocomment-atime-results@v1.5.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          base-ref: ${{ steps.prepare-inputs.outputs.base_ref }}
+          head-ref: ${{ steps.prepare-inputs.outputs.head_ref }}
+          head-sha: ${{ steps.prepare-inputs.outputs.head_sha }}
+          pr-number: ${{ steps.prepare-inputs.outputs.pr_number }}

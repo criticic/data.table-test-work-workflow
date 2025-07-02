@@ -147,7 +147,7 @@ SEXP freadR(
   if (!isNull(NAstringsArg) && !isString(NAstringsArg))
     internal_error(__func__, "NAstringsArg is type '%s'. R level catches this", type2char(TYPEOF(NAstringsArg)));  // # nocov
   int nnas = length(NAstringsArg);
-  const char **NAstrings = (const char **)R_alloc((nnas + 1), sizeof(char*));  // +1 for the final NULL to save a separate nna variable
+  const char **NAstrings = (const char **)R_alloc((nnas + 1), sizeof(*NAstrings));  // +1 for the final NULL to save a separate nna variable
   for (int i=0; i<nnas; i++)
     NAstrings[i] = CHAR(STRING_ELT(NAstringsArg,i));
   NAstrings[nnas] = NULL;
@@ -176,6 +176,8 @@ SEXP freadR(
   } else if (strcmp(tt,"double")==0 || strcmp(tt,"numeric")==0) {
     readInt64As = CT_FLOAT64;
   } else STOP(_("Invalid value integer64='%s'. Must be 'integer64', 'character', 'double' or 'numeric'"), tt);
+
+  args.readInt64As = readInt64As;
 
   colClassesSxp = colClassesArg;
 
@@ -231,9 +233,9 @@ static void applyDrop(SEXP items, int8_t *type, int ncol, int dropSource) {
   for (int j=0; j<n; ++j) {
     int k = itemsD[j];
     if (k==NA_INTEGER || k<1 || k>ncol) {
-      static char buff[51];
-      if (dropSource==-1) snprintf(buff, 50, "drop[%d]", j+1); // # notranslate
-      else snprintf(buff, 50, "colClasses[[%d]][%d]", dropSource+1, j+1); // # notranslate
+      static char buff[50];
+      if (dropSource==-1) snprintf(buff, sizeof(buff), "drop[%d]", j + 1); // # notranslate
+      else snprintf(buff, sizeof(buff), "colClasses[[%d]][%d]", dropSource + 1, j + 1); // # notranslate
       if (k==NA_INTEGER) {
         if (isString(items))
           DTWARN(_("Column name '%s' (%s) not found"), CHAR(STRING_ELT(items, j)), buff);
@@ -262,7 +264,7 @@ bool userOverride(int8_t *type, lenOff *colNames, const char *anchor, const int 
     SEXP elem;
     if (colNames==NULL || colNames[i].len<=0) {
       char buff[12];
-      snprintf(buff,12,"V%d",i+1); // # notranslate
+      snprintf(buff, sizeof(buff), "V%d", i + 1); // # notranslate
       elem = mkChar(buff);  // no PROTECT as passed immediately to SET_STRING_ELT
     } else {
       elem = mkCharLenCE(anchor+colNames[i].off, colNames[i].len, ienc);  // no PROTECT as passed immediately to SET_STRING_ELT
@@ -479,7 +481,7 @@ size_t allocateDT(int8_t *typeArg, int8_t *sizeArg, int ncolArg, int ndrop, size
     else if (selectRank) setAttrib(DT, sym_colClassesAs, subsetVector(colClassesAs, selectRank));  // reorder the colClassesAs
   }
   // TODO: move DT size calculation into a separate function (since the final size is different from the initial size anyways)
-  size_t DTbytes = SIZEOF(DT)*(ncol-ndrop)*2; // the VECSXP and its column names (exclude global character cache usage)
+  size_t DTbytes = RTYPE_SIZEOF(DT)*(ncol-ndrop)*2; // the VECSXP and its column names (exclude global character cache usage)
 
   // For each column we could have one of the following cases:
   //   * if the DataTable is "new", then make a new vector
@@ -520,7 +522,7 @@ size_t allocateDT(int8_t *typeArg, int8_t *sizeArg, int ncolArg, int ndrop, size
         setAttrib(thiscol, sym_tzone, ScalarString(char_UTC)); // see news for v1.13.0
       }
       SET_TRUELENGTH(thiscol, allocNrow);
-      DTbytes += SIZEOF(thiscol)*allocNrow;
+      DTbytes += RTYPE_SIZEOF(thiscol)*allocNrow;
     }
     resi++;
   }
@@ -708,13 +710,13 @@ void progress(int p, int eta) {
 }
 // # nocov end
 
-void __halt(bool warn, const char *format, ...) {
+void halt__(bool warn, const char *format, ...) {
   // Solves: http://stackoverflow.com/questions/18597123/fread-data-table-locks-files
   // TODO: always include fnam in the STOP message. For log files etc.
   va_list args;
   va_start(args, format);
   char msg[2000];
-  vsnprintf(msg, 2000, format, args);
+  vsnprintf(msg, sizeof(msg), format, args);
   va_end(args);
   freadCleanup(); // this closes mmp hence why we just copied substrings from mmp to msg[] first since mmp is now invalid
   // if (warn) warning(_("%s"), msg);

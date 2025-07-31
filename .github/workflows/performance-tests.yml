@@ -6,10 +6,10 @@ on:
       - opened
       - reopened
       - synchronize
-    paths:
-      - 'R/**'
-      - 'src/**'
-      - '.ci/atime/**'
+    # paths:
+    #   - 'R/**'
+    #   - 'src/**'
+    #   - '.ci/atime/**'
   workflow_dispatch:
 
 jobs:

@@ -19,6 +19,6 @@ jobs:
       pull-requests: write
     steps:
       - name: Run atime performance analysis
-        uses: Anirban166/Autocomment-atime-results@v1.5.0
+        uses: criticic/r-Autocomment-atime-results@upload-cache-artifact
         with:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
